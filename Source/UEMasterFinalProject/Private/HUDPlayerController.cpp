@@ -18,7 +18,7 @@ void AHUDPlayerController::BeginPlay()
 				[SNew(STextBlock).Text(FText::FromString(TEXT("Test button")))]
 			];
 	if (GEngine)
-	{
+	{// add created widget to the viewport
 		GEngine->GameViewport->AddViewportWidgetForPlayer(GetLocalPlayer(), WidgetVLayout, 0);
 	}
 }

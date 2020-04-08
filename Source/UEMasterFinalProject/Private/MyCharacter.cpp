@@ -10,6 +10,7 @@
 #include "Components/InputComponent.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AMyCharacter::AMyCharacter()
@@ -35,7 +36,7 @@ AMyCharacter::AMyCharacter()
 	ForwardDirection = CreateDefaultSubobject<UArrowComponent>("ForwardDirectionArrow");
 	ForwardDirection->SetupAttachment(RootComponent);
 
-	// Setup to avoid Self-Response
+	// Setup collision settings to avoid Self-Response
 	GetMesh()->SetCollisionResponseToChannel(ECC_Destructible, ECR_Ignore);
 
 	///*** Character movement settings ***///
@@ -66,7 +67,7 @@ void AMyCharacter::BeginPlay()
 	Super::BeginPlay();
 	// Turn spring arm under the ground
 	SpringArm->SetRelativeRotation(FQuat::MakeFromEuler(FVector(0, -25, 0)));
-	// Activate camera
+	//
 	Camera->Activate();
 	// Ensure charcter is always facing the movements direction
 	GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -101,7 +102,7 @@ void AMyCharacter::RotateCamera(float Amount)
 		FVector CurrentRotation = SpringArm->GetComponentRotation().Euler();
 		// Add the amount of the rotation vector
 		CurrentRotation += FVector(0, 0, Amount);
-		// Set new rotation in the world
+		// Set new rotation in the world coordinates
 		SpringArm->SetWorldRotation(FQuat::MakeFromEuler(CurrentRotation));
 	}
 }
@@ -148,6 +149,7 @@ void AMyCharacter::Fired()
 		return;
 	}
 	bIsFiring = false;
+
 	FVector HandLocation = GetMesh()->GetBoneLocation(TEXT("LeftHandMiddle1"));
 	// Raycasting properties  
 	float RayDistance = 10000.f;
@@ -164,6 +166,11 @@ void AMyCharacter::Fired()
 	{// Emit firing effect
 		FiringEffectEmitter->SetWorldLocation(HandLocation + (RayDirection * 60.f));
 		FiringEffectEmitter->Activate(true);
+		// try and play the sound if specified in the editor
+		if (FireSound != NULL)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
+		}
 	}
 
 	if (bHasHitSmth)
@@ -171,11 +178,10 @@ void AMyCharacter::Fired()
 		DrawDebugLine(GetWorld(), RayStart, outHitresult.ImpactPoint, Color, false, 0.5f, 0, 15.f);
 		// Hit the movable actors
 		if (outHitresult.GetActor()->IsRootComponentMovable())
-		{
+		{// Get all static mesh components of the hitted actor
 			TArray<UStaticMeshComponent*> outComponentsList;
-			// Get all static mesh components of the hitted actor
 			outHitresult.GetActor()->GetComponents<UStaticMeshComponent>(outComponentsList);
-
+			// iterate by result and implement force to a mesh
 			for (auto& mesh : outComponentsList)
 			{
 				mesh->AddForce(RayDirection * 100000000.f);
@@ -183,7 +189,7 @@ void AMyCharacter::Fired()
 		}
 	}
 	else
-	{
+	{// draw even if we do not face any obstacle
 		DrawDebugLine(GetWorld(), RayStart, RayEnd, Color, false, 0.5f, 0, 15.f);
 	}
 }
@@ -192,9 +198,9 @@ void AMyCharacter::Fired()
 void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
+	// calculate velocity multiplier for one frame
 	float RampThisFrame = (DeltaTime / TimeToMaxSpeed) * MaxSprintMultiplier;
-
+	// 
 	if (bIsSprinting)
 	{
 		CurrentSprintMultiplier += RampThisFrame;
@@ -203,8 +209,9 @@ void AMyCharacter::Tick(float DeltaTime)
 	{
 		CurrentSprintMultiplier -= RampThisFrame;
 	}
-
+	// set min/max speed range
 	CurrentSprintMultiplier = FMath::Clamp(CurrentSprintMultiplier, 1.f, MaxSprintMultiplier);
+	// set character current walk speed
 	GetCharacterMovement()->MaxWalkSpeed = BaseRunSpeed * CurrentSprintMultiplier;
 }
 
@@ -235,7 +242,7 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 								this,
 								&AMyCharacter::EndSprint);
 
-	// Bind the axis mappings
+	// Bind axis mappings
 	InputComponent->BindAxis("MoveForwardBackward",
 							  this,
 							  &AMyCharacter::MoveForwardBackward);
